@@ -47,7 +47,7 @@ typedef enum {
     KVServiceErrorNoAuthentication
 } KVServiceError;
 
-typedef id (^KVRequestPreprocessBlock)(NSURLResponse *response, NSData *data, NSError **error);
+typedef id (^KVRequestPreprocessBlock)(NSURLResponse *response, NSData *data, NSError *error, NSError **preprocessError);
 typedef void (^KVRequestCompletionBlock)(NSURLResponse *response, id data, NSError *error);
 
 

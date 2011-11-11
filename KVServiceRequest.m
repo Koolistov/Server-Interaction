@@ -159,8 +159,8 @@
     if (self.service.preprocessHandler != nil) {
         dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
         dispatch_async(queue, ^() {
-            NSError *preprocessError = nil;
-            id result = self.service.preprocessHandler(response, data, &preprocessError);
+            __block NSError *preprocessError = nil;
+            id result = self.service.preprocessHandler(response, data, error, &preprocessError);
             dispatch_async(dispatch_get_main_queue(), ^() {
                 if ([preprocessError.domain isEqualToString:KVServiceErrorDomain] && preprocessError.code == KVServiceErrorExpiredToken) {
                     // Expired token, request new one
@@ -175,12 +175,12 @@
                 }
                 
                 // Inform service
-                if (error) {
-                    [self.service request:self receivedError:error];
-                    self.completionHandler(nil, nil, error);
-                } else {
+                if (result) {
                     [self.service request:self receivedResponse:response data:data];
                     self.completionHandler(response, result, nil);
+                } else {
+                    [self.service request:self receivedError:preprocessError ? preprocessError : error];
+                    self.completionHandler(nil, nil, preprocessError ? preprocessError : error);
                 }
             });
         });
