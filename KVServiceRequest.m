@@ -67,7 +67,7 @@
 - (id)init {
     self = [super init];
     if (self != nil) {
-        
+        self.allowCancel = YES;
     }
     return self;
 }
@@ -148,9 +148,18 @@
     if (!self.URLConnection) {
         return NO;
     }
+    
+#ifdef DEBUG
+    NSLog (@"Cancelled: %@", self.URL);
+#endif
+    
     [self.URLConnection cancel];
     
     [self processResponse:nil receivedData:nil error:nil];
+    
+    self.URLConnection = nil;
+    self.URLResponse = nil;
+    self.receivedData = nil;
     
     return YES;
 }
@@ -175,7 +184,7 @@
                 }
                 
                 // Inform service
-                if (result) {
+                if (!error && !preprocessError) {
                     [self.service request:self receivedResponse:response data:data];
                     self.completionHandler(response, result, nil);
                 } else {
@@ -196,6 +205,10 @@
             }
         });
     }
+    
+    self.URLConnection = nil;
+    self.URLResponse = nil;
+    self.receivedData = nil;
 }
 
 #pragma mark - Token 
