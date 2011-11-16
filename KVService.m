@@ -144,7 +144,7 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
     
     if ([request.HTTPMethod isEqualToString:@"GET"] && request.allowCaching) {
         for (KVServiceRequest *activeRequest in self.activeRequests) {
-            if ([activeRequest.URL isEqual:request.URL]) {
+            if ([activeRequest.URL isEqual:request.URL] && [activeRequest.HTTPMethod isEqualToString:@"GET"] && activeRequest.allowCaching) {
                 // Similar request already active, wait for it to finish, so we can use cache for this request
 #ifdef DEBUG
                 NSLog (@"Postponing loading (similar request already active): %@", request.URL.absoluteString);
