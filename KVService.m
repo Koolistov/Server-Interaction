@@ -42,7 +42,10 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
 
 @property (nonatomic, copy, readwrite) NSString *token;
 @property (nonatomic, retain) NSMutableArray *activeRequests;
+@property (nonatomic, retain) NSMutableArray *pendingRequests;
 @property (nonatomic, retain) KVServiceRequest *tokenRequest;
+
+- (void)fireNextPendingRequestIfNeeded:(KVServiceRequest *)request;
 
 @end
 
@@ -55,6 +58,7 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
 @synthesize allowSelfSignedSSLCertificate=allowSelfSignedSSLCertificate_;
 @synthesize preprocessHandler=preprocessHandler_;
 @synthesize activeRequests=activeRequests_;
+@synthesize pendingRequests=pendingRequests_;
 @synthesize tokenRequest=tokenRequest_;
 
 + (KVService *)defaultService  {
@@ -69,6 +73,7 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
     self = [super init];
     if (self) {
         self.activeRequests = [NSMutableArray array];
+        self.pendingRequests = [NSMutableArray array];
         self.timeoutInterval = 30.0;
     }
     return self;
@@ -80,6 +85,7 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
     self.cache = nil;
     self.preprocessHandler = nil;
     self.activeRequests = nil;
+    self.pendingRequests = nil; 
     self.tokenRequest = nil;
     [super dealloc];
 }
@@ -136,6 +142,19 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
 - (KVServiceRequest *)performRequest:(KVServiceRequest *)request {
     request.service = self;
     
+    if ([request.HTTPMethod isEqualToString:@"GET"] && request.allowCaching) {
+        for (KVServiceRequest *activeRequest in self.activeRequests) {
+            if ([activeRequest.URL isEqual:request.URL]) {
+                // Similar request already active, wait for it to finish, so we can use cache for this request
+#ifdef DEBUG
+                NSLog (@"Postponing loading (similar request already active): %@", request.URL.absoluteString);
+#endif
+                [self.pendingRequests addObject:request];
+                return request;
+            }
+        }
+    }
+    
     // Start request
     [request send];
     
@@ -163,6 +182,9 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
         self.tokenRequest = nil;
     }
     
+    // Fire next pending request if present
+    [self fireNextPendingRequestIfNeeded:request];
+    
     // Release request when done
     [self.activeRequests removeObject:request];
 }
@@ -188,8 +210,43 @@ NSString *const KVServiceErrorDomain = @"KVServiceErrorDomain";
         self.tokenRequest = nil;
     }
     
+    // Fire next pending request if present
+    [self fireNextPendingRequestIfNeeded:request];
+    
     // Release request when done
     [self.activeRequests removeObject:request];
+}
+
+- (void)fireNextPendingRequestIfNeeded:(KVServiceRequest *)request {
+    // Fire next pending request if present
+    if ([request.HTTPMethod isEqualToString:@"GET"] && request.allowCaching) {
+        KVServiceRequest *nextPendingRequest = nil;
+        for (KVServiceRequest *pendingRequest in self.pendingRequests) {
+            if ([pendingRequest.URL isEqual:request.URL]) {
+                nextPendingRequest = pendingRequest;
+                break;
+            }
+        }
+        
+        if (nextPendingRequest) {
+#ifdef DEBUG
+            NSLog (@"Delayed loading (expect cached response): %@", request.URL.absoluteString);
+#endif
+            
+            // Start request
+            [nextPendingRequest send];
+            
+            // Hold on to request whilst its active
+            [self.activeRequests addObject:nextPendingRequest];
+            
+            // Tell delegate
+            if ([self.delegate respondsToSelector:@selector(service:didStartRequest:)]) {
+                [self.delegate service:self didStartRequest:nextPendingRequest];
+            }
+            
+            [self.pendingRequests removeObject:nextPendingRequest];
+        }
+    }
 }
 
 @end
