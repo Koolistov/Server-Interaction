@@ -42,6 +42,8 @@
 @property (nonatomic, retain) NSMutableData *receivedData;
 @property (nonatomic, retain) NSURLAuthenticationChallenge *currentChallenge;
 @property (nonatomic, assign) int attemptCount;
+@property (nonatomic, assign, readwrite, getter=isLoading) BOOL loading;
+@property (nonatomic, assign, readwrite) NSDate *retrievalDate;
 
 - (void)processResponse:(NSURLResponse *)response receivedData:(NSData *)data error:(NSError *)error;
 
@@ -63,6 +65,8 @@
 @synthesize URLResponse=URLResponse_;
 @synthesize receivedData=receivedData_;
 @synthesize currentChallenge=currentChallenge_;
+@synthesize loading=loading_;
+@synthesize retrievalDate=retrievalDate_;
 
 - (id)init {
     self = [super init];
@@ -86,6 +90,7 @@
     self.URLResponse = nil;
     self.receivedData = nil;
     self.currentChallenge = nil;
+    self.retrievalDate = nil;
     [super dealloc];
 }
 
@@ -96,6 +101,8 @@
 #ifdef DEBUG
     NSLog (@"Loading: %@", self.URL.absoluteString);
 #endif
+    
+    self.loading = YES;
 
     // Create the request
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:self.URL];
@@ -117,6 +124,7 @@
         
         if (earlierCachedResponse) {
             // Get details from cache
+            self.retrievalDate = [[earlierCachedResponse userInfo] objectForKey:@"retrievalDate"];
             [self processResponse:[earlierCachedResponse response] receivedData:[earlierCachedResponse data] error:nil];
               
 #ifdef DEBUG
@@ -160,6 +168,7 @@
     self.URLConnection = nil;
     self.URLResponse = nil;
     self.receivedData = nil;
+    self.loading = NO;
     
     return YES;
 }
@@ -209,6 +218,7 @@
     self.URLConnection = nil;
     self.URLResponse = nil;
     self.receivedData = nil;
+    self.loading = NO;
 }
 
 #pragma mark - Token 
@@ -258,8 +268,10 @@
     NSLog (@"Received response: %@", self.URLResponse);
 #endif
 
+    self.retrievalDate = [NSDate date];
+    
     if (self.allowCaching) { // && ![response hasFault]) {
-        NSCachedURLResponse *cachedResponse = [[NSCachedURLResponse alloc] initWithResponse:self.URLResponse data:self.receivedData];
+        NSCachedURLResponse *cachedResponse = [[NSCachedURLResponse alloc] initWithResponse:self.URLResponse data:self.receivedData userInfo:[NSDictionary dictionaryWithObject:self.retrievalDate forKey:@"retrievalDate"] storagePolicy:NSURLCacheStorageAllowed];
         [self.service.cache storeCachedResponse:cachedResponse forRequest:self.URLRequest];
         [cachedResponse release];
         

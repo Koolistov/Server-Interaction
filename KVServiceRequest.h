@@ -49,4 +49,7 @@
 - (void)send;
 - (BOOL)cancel;
 
+@property (nonatomic, assign, readonly, getter=isLoading) BOOL loading;
+@property (nonatomic, assign, readonly) NSDate *retrievalDate;
+
 @end
